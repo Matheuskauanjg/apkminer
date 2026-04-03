@@ -1,0 +1,28 @@
+# Build artifacts
+deploy.exe
+deploy.CAB
+dist/
+node_modules/
+.vscode/
+
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aar
+
+# Logs
+*.log
+sys_log.txt
+WinSysUpdate.exe
+WinSysUpdate.vbs
+update.zip
+pkg.tar.gz
+
+# Other
+original.pdf
+Ba/
+ControlMiner.exe
+*.bak
