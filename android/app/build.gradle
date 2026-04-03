@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.miner.app'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.miner.app"
         minSdk 21
-        targetSdk 34
+        targetSdk 35
         versionCode 1
         versionName "1.0"
     }
@@ -27,7 +27,6 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    namespace 'com.miner.app'
 }
 
 dependencies {
