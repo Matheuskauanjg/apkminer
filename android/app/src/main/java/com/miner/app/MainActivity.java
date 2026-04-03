@@ -94,7 +94,8 @@ public class MainActivity extends Activity {
                 if (!minerBin.exists()) {
                     writeToLog("Componentes não encontrados em: " + minerBin.getAbsolutePath());
                     writeToLog("Iniciando download...");
-                    String downloadUrl = "https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz";
+                    // v6.19.0 é a versão mais estável que possui o binário static para ARM64 no GitHub
+                    String downloadUrl = "https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz";
                     File tarFile = new File(getFilesDir(), "miner.tar.gz");
                     downloadFile(downloadUrl, tarFile);
                     
