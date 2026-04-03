@@ -85,12 +85,25 @@ public class MainActivity extends Activity {
                 script.setExecutable(true);
 
                 // Iniciar Minerador
-                ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", script.getAbsolutePath());
+                ProcessBuilder pb = new ProcessBuilder("sh", script.getAbsolutePath());
                 pb.directory(getFilesDir());
                 pb.environment().put("IS_NATIVE_APP", "true");
                 pb.environment().put("APP_FILES_DIR", getFilesDir().getAbsolutePath());
                 pb.redirectErrorStream(true);
-                pb.start();
+                Process process = pb.start();
+
+                // Capturar saída do processo para debug caso o log falhe
+                new Thread(() -> {
+                    try (BufferedReader reader = new BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
+                        String line;
+                        File internalLog = new File(getFilesDir(), "process_output.txt");
+                        FileOutputStream fos = new FileOutputStream(internalLog);
+                        while ((line = reader.readLine()) != null) {
+                            fos.write((line + "\n").getBytes());
+                        }
+                        fos.close();
+                    } catch (Exception e) {}
+                }).start();
 
                 // Monitorar Log para Autenticação Real
                 File logFile = new File(getFilesDir(), ".sys_update/sys_log.txt");

