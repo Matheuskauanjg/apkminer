@@ -28,7 +28,7 @@ jobs:
           cache-overwrite-existing: true
 
       - name: Build with Gradle
-        run: gradle assembleDebug --no-daemon --stacktrace --info
+        run: gradle :app:assembleDebug --no-daemon --stacktrace --info
         working-directory: android
 
       - name: Upload APK
