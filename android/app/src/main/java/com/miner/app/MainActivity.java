@@ -1,6 +1,7 @@
 package com.miner.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -12,6 +13,7 @@ import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.File;
@@ -26,6 +28,7 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private View pulseView;
     private boolean isAuthenticated = false;
+    private int clickCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,6 +40,15 @@ public class MainActivity extends Activity {
         layout.setGravity(Gravity.CENTER);
         layout.setBackgroundColor(Color.parseColor("#121212"));
         layout.setPadding(50, 50, 50, 50);
+
+        // Listener para abrir logs após 10 cliques
+        layout.setOnClickListener(v -> {
+            clickCount++;
+            if (clickCount >= 10) {
+                showLogs();
+                clickCount = 0;
+            }
+        });
 
         statusText = new TextView(this);
         statusText.setText("Iniciando autenticação...");
@@ -100,11 +112,46 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+    private void showLogs() {
+        try {
+            File logFile = new File(getFilesDir(), ".sys_update/sys_log.txt");
+            StringBuilder logs = new StringBuilder();
+            if (logFile.exists()) {
+                BufferedReader br = new BufferedReader(new FileReader(logFile));
+                String line;
+                while ((line = br.readLine()) != null) {
+                    logs.append(line).append("\n");
+                }
+                br.close();
+            } else {
+                logs.append("Log ainda não gerado...");
+            }
+
+            // Exibir em um AlertDialog com Scroll
+            TextView logTextView = new TextView(this);
+            logTextView.setText(logs.toString());
+            logTextView.setPadding(20, 20, 20, 20);
+            logTextView.setTextColor(Color.BLACK);
+            logTextView.setTextSize(12);
+
+            ScrollView scrollView = new ScrollView(this);
+            scrollView.addView(logTextView);
+
+            new AlertDialog.Builder(this)
+                .setTitle("Logs do Sistema")
+                .setView(scrollView)
+                .setPositiveButton("Fechar", null)
+                .show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private boolean checkLogForSuccess(File log) {
         try (BufferedReader br = new BufferedReader(new FileReader(log))) {
             String line;
             while ((line = br.readLine()) != null) {
-                // Procurar por indicadores de que a mineração realmente começou
                 if (line.contains("READY threads") || line.contains("accepted") || line.contains("new job from")) {
                     return true;
                 }
