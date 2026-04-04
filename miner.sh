@@ -11,9 +11,16 @@ IS_TERMUX=$(echo $HOME | grep -q "com.termux" && echo "true" || echo "false")
 IS_ADB_ANDROID=$(uname -a | grep -i "android" && echo "true" || echo "false")
 IS_NATIVE_APP=${IS_NATIVE_APP:-"false"}
 IS_VIRTUAL_MACHINE=${IS_VIRTUAL_MACHINE:-"false"}
+IS_PROOT=$(id | grep -q "root" && echo "true" || echo "false")
 
 # Definir TMP_BASE antes de qualquer uso
-if [ "$IS_VIRTUAL_MACHINE" = "true" ]; then
+if [ "$IS_PROOT" = "true" ]; then
+    # Estamos dentro do PRoot (Simulado como root)
+    TMP_BASE="/root"
+    IS_NATIVE_APP="true"
+    # No PRoot, o xmrig está no /bin ou no local atual
+    NEW_BIN=$(which xmrig 2>/dev/null || echo "/bin/xmrig")
+elif [ "$IS_VIRTUAL_MACHINE" = "true" ]; then
     # Estamos dentro da "Maquina Virtual" do App
     TMP_BASE="$HOME"
     IS_NATIVE_APP="true"

